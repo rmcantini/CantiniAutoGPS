@@ -443,15 +443,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "auto_geotag_rust"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "image",
- "rfd",
-]
-
-[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -626,6 +617,15 @@ dependencies = [
  "rustix 1.1.5",
  "wayland-backend",
  "wayland-client",
+]
+
+[[package]]
+name = "cantini_auto_gps"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "image",
+ "rfd",
 ]
 
 [[package]]

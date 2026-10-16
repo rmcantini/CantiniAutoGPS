@@ -1,5 +1,5 @@
 [package]
-name = "auto_geotag_rust"
+name = "cantini_auto_gps"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,8 +9,8 @@ rfd = "0.15"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [package.metadata.bundle]
-name = "AutoGeoTag"
-identifier = "com.geotag.dng"
+name = "CantiniAutoGPS"
+identifier = "com.cantini.autogps"
 version = "0.1.0"
 icon = [
     "icons/32x32.png",
@@ -21,5 +21,5 @@ icon = [
     "icons/512x512.png",
 ]
 category = "Photography"
-short_description = "Geotag DNG photos from a GPX track"
+short_description = "Geotag photos from a GPX track"
 

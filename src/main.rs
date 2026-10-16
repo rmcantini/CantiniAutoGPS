@@ -21,7 +21,7 @@ fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([720.0, 740.0])
             .with_min_inner_size([600.0, 560.0])
-            .with_title("AutoGeoTag")
+            .with_title("CantiniAutoGPS")
             .with_drag_and_drop(true)
             .with_icon(egui::IconData {
                 rgba: icon.into_raw(),
@@ -32,7 +32,7 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "AutoGeoTag",
+        "CantiniAutoGPS",
         options,
         Box::new(|cc| Ok(Box::new(GeoTagApp::new(cc)))),
     )
