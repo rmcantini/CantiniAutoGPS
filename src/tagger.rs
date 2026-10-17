@@ -40,22 +40,76 @@ pub fn expand_dirs(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     out
 }
 
-pub fn find_exiftool() -> Option<PathBuf> {
-    let mut candidates: Vec<PathBuf> = vec![
-        "/opt/homebrew/bin/exiftool".into(), // Apple Silicon Homebrew
-        "/usr/local/bin/exiftool".into(),    // Intel Homebrew / installer
-        "/usr/bin/exiftool".into(),          // Linux
-        r"C:\Windows\exiftool.exe".into(),
-        r"C:\Program Files\exiftool\exiftool.exe".into(),
-    ];
-    candidates.push(PathBuf::from(if cfg!(windows) { "exiftool.exe" } else { "exiftool" }));
-    candidates.into_iter().find(|c| {
-        Command::new(c)
+/// A way of launching ExifTool: either an installed binary, or the copy bundled with the app,
+/// which is a Perl script run by the system Perl.
+#[derive(Clone, Debug)]
+pub struct ExifTool {
+    program: PathBuf,
+    script: Option<PathBuf>,
+}
+
+impl ExifTool {
+    pub fn command(&self) -> Command {
+        let mut cmd = Command::new(&self.program);
+        if let Some(script) = &self.script {
+            cmd.arg(script);
+        }
+        cmd
+    }
+
+    pub fn describe(&self) -> String {
+        match &self.script {
+            Some(script) => format!("bundled ExifTool ({})", script.display()),
+            None => format!("ExifTool at {}", self.program.display()),
+        }
+    }
+
+    fn works(&self) -> bool {
+        self.command()
             .arg("-ver")
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false)
-    })
+    }
+}
+
+/// Folder holding the bundled `exiftool` script and its `lib/`.
+fn bundled_script() -> Option<PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    [
+        exe_dir.join("../Resources/vendor/exiftool"), // inside a macOS .app (cargo-bundle layout)
+        exe_dir.join("../Resources/exiftool"),
+        exe_dir.join("exiftool"),              // next to the binary
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("vendor/exiftool"), // development builds
+    ]
+    .into_iter()
+    .map(|dir| dir.join("exiftool"))
+    .find(|script| script.is_file())
+}
+
+/// Prefers the bundled ExifTool so behaviour doesn't depend on what the user has installed,
+/// and falls back to an installed one.
+pub fn find_exiftool() -> Option<ExifTool> {
+    if let Some(script) = bundled_script() {
+        for perl in ["/usr/bin/perl", "perl"] {
+            let tool = ExifTool { program: perl.into(), script: Some(script.clone()) };
+            if tool.works() {
+                return Some(tool);
+            }
+        }
+    }
+    let installed = [
+        "/opt/homebrew/bin/exiftool",
+        "/usr/local/bin/exiftool",
+        "/usr/bin/exiftool",
+        r"C:\Windows\exiftool.exe",
+        r"C:\Program Files\exiftool\exiftool.exe",
+        if cfg!(windows) { "exiftool.exe" } else { "exiftool" },
+    ];
+    installed
+        .into_iter()
+        .map(|p| ExifTool { program: p.into(), script: None })
+        .find(ExifTool::works)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -119,8 +173,8 @@ fn first_line(s: &str) -> String {
 }
 
 /// Tags one photo.
-pub fn tag_one(exiftool: &Path, gpx: &[PathBuf], opts: &Options, photo: &Path) -> Outcome {
-    match Command::new(exiftool).args(build_args(gpx, opts, photo)).output() {
+pub fn tag_one(exiftool: &ExifTool, gpx: &[PathBuf], opts: &Options, photo: &Path) -> Outcome {
+    match exiftool.command().args(build_args(gpx, opts, photo)).output() {
         Ok(o) => classify(
             &String::from_utf8_lossy(&o.stdout),
             &String::from_utf8_lossy(&o.stderr),
@@ -143,8 +197,9 @@ pub struct PhotoInfo {
 }
 
 /// Reads capture time, time zone offset and existing GPS for each photo in one ExifTool call.
-pub fn scan(exiftool: &Path, paths: &[PathBuf]) -> Vec<PhotoInfo> {
-    let out = Command::new(exiftool)
+pub fn scan(exiftool: &ExifTool, paths: &[PathBuf]) -> Vec<PhotoInfo> {
+    let out = exiftool
+        .command()
         .args(["-T", "-f", "-DateTimeOriginal", "-OffsetTimeOriginal", "-GPSLatitude"])
         .args(paths)
         .output();
@@ -284,6 +339,13 @@ mod tests {
         let t = parse_exif_datetime("2024:02:29 23:59:00").unwrap();
         assert_eq!(format_epoch(t), "2024-02-29 23:59");
         assert_eq!(parse_exif_datetime("1970:01:01 00:00:00"), Some(0));
+    }
+
+    #[test]
+    fn bundled_exiftool_is_found_and_runs() {
+        let script = bundled_script().expect("vendor/exiftool/exiftool should exist");
+        let tool = ExifTool { program: "/usr/bin/perl".into(), script: Some(script) };
+        assert!(tool.works());
     }
 
     #[test]

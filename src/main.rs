@@ -7,11 +7,18 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
-use tagger::{Options, Outcome, PhotoInfo};
+use tagger::{ExifTool, Options, Outcome, PhotoInfo};
 
 const ROW_HEIGHT: f32 = 24.0;
 
 fn main() -> eframe::Result<()> {
+    if std::env::args().any(|a| a == "--check-exiftool") {
+        match tagger::find_exiftool() {
+            Some(t) => println!("{}", t.describe()),
+            None => println!("ExifTool not found"),
+        }
+        return Ok(());
+    }
     let icon = image::load_from_memory(include_bytes!("../icons/512x512.png"))
         .expect("Failed to load icon")
         .to_rgba8();
@@ -136,7 +143,7 @@ struct GpxEntry {
 }
 
 struct GeoTagApp {
-    exiftool: Option<PathBuf>,
+    exiftool: Option<ExifTool>,
     photos: Vec<PhotoRow>,
     tracks: Vec<GpxEntry>,
     timezones: Vec<String>,
@@ -174,7 +181,7 @@ impl GeoTagApp {
         let exiftool = tagger::find_exiftool();
         Self {
             log: match &exiftool {
-                Some(p) => format!("Using ExifTool at {}\n", p.display()),
+                Some(t) => format!("Using {}\n", t.describe()),
                 None => "ExifTool was not found.\n".into(),
             },
             exiftool,
@@ -487,8 +494,8 @@ impl GeoTagApp {
                 .inner_margin(12.0)
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.label(RichText::new("⚠ ExifTool is required").strong());
-                    ui.label("Install it with Homebrew, then reopen the app:");
+                    ui.label(RichText::new("⚠ ExifTool could not be started").strong());
+                    ui.label("The bundled copy needs Perl, and no installed ExifTool was found. Install it, then reopen the app:");
                     ui.monospace("brew install exiftool");
                 });
         }
