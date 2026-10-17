@@ -93,9 +93,77 @@ jobs:
           path: dist/*.dmg
           if-no-files-found: error
 
+  linux:
+    # Built on the oldest hosted Ubuntu so the AppImage runs on distros with glibc 2.35 or newer.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Show shared library dependencies
+        run: ldd target/release/cantini_auto_gps
+
+      - name: Package AppImage
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+
+          # Pinned packaging tools, verified by SHA-256.
+          curl -fsSL -o appimagetool-x86_64.AppImage https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          curl -fsSL -o runtime-x86_64 https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool-x86_64.AppImage" | sha256sum -c -
+          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" | sha256sum -c -
+          chmod +x appimagetool-x86_64.AppImage
+          ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
+
+          APPDIR=AppDir
+          mkdir -p $APPDIR/usr/bin $APPDIR/usr/share/doc/cantini-autogps
+          cp target/release/cantini_auto_gps $APPDIR/usr/bin/
+          cp -R vendor/exiftool $APPDIR/usr/bin/exiftool
+          cp LICENSE THIRD_PARTY_LICENSES.md $APPDIR/usr/share/doc/cantini-autogps/
+          cp packaging/linux/cantini-autogps.desktop $APPDIR/
+          cp icons/256x256.png $APPDIR/cantini-autogps.png
+          cp icons/256x256.png $APPDIR/.DirIcon
+          printf '%s\n' '#!/bin/sh' 'HERE="$(dirname "$(readlink -f "$0")")"' 'exec "$HERE/usr/bin/cantini_auto_gps" "$@"' > $APPDIR/AppRun
+          chmod +x $APPDIR/AppRun
+
+          mkdir -p dist
+          ARCH=x86_64 squashfs-root/AppRun --runtime-file runtime-x86_64 $APPDIR "dist/CantiniAutoGPS-$VERSION-linux-x86_64.AppImage"
+          chmod +x dist/*.AppImage
+          ls -la dist
+
+      - name: Smoke test (virtual display)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri libegl1 libxkbcommon0 libxkbcommon-x11-0
+          APP=$(ls dist/*.AppImage)
+          # Finds its bundled ExifTool when run from inside the AppImage:
+          out=$("$APP" --appimage-extract-and-run --check-exiftool)
+          echo "$out"
+          echo "$out" | grep -q "bundled ExifTool"
+          # Starts and keeps running for a few seconds without crashing:
+          set +e
+          timeout 8 xvfb-run -a "$APP" --appimage-extract-and-run
+          code=$?
+          set -e
+          echo "exit code: $code (124 means still running when stopped)"
+          [ "$code" -eq 124 ]
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.AppImage
+          if-no-files-found: error
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, macos]
+    needs: [windows, macos, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write

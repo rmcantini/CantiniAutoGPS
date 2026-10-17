@@ -2,7 +2,7 @@
 
 **Geotag your photos from a GPS track.** Drop in your photos and a GPX file from your phone, watch or GPS logger, and CantiniAutoGPS writes the location into each photo by matching the time it was taken to where you were at that moment.
 
-It is a small desktop app for macOS and Windows, written in Rust. ExifTool is bundled inside it, so there is nothing else to install.
+It is a small desktop app for macOS, Windows and Linux, written in Rust. ExifTool is bundled inside it, so there is nothing else to install.
 
 ## Features
 
@@ -62,6 +62,26 @@ xattr -dr com.apple.quarantine /Applications/CantiniAutoGPS.app
 
 The app is **not code-signed**, so Windows SmartScreen may show *"Windows protected your PC"*. Click **More info**, then **Run anyway**. You only need to do this once. If you prefer, right-click the downloaded zip, choose **Properties**, tick **Unblock**, and extract it afterwards.
 
+### Linux
+
+**Requirements:** 64-bit Intel/AMD (x86_64), a desktop with OpenGL, and a distribution with glibc 2.35 or newer (for example Ubuntu 22.04+, Debian 12+, Fedora 36+, Arch). Perl must be installed, which it is by default on virtually all desktop distributions. File dialogs use `xdg-desktop-portal`, which every major desktop provides.
+
+1. Download `CantiniAutoGPS-<version>-linux-x86_64.AppImage` from the [latest release](https://github.com/rmcantini/CantiniAutoGPS/releases/latest).
+2. Make it executable and run it:
+
+```bash
+chmod +x CantiniAutoGPS-*-linux-x86_64.AppImage
+./CantiniAutoGPS-*-linux-x86_64.AppImage
+```
+
+AppImages need FUSE 2. If you see an error about `libfuse.so.2` (common on Ubuntu 22.04 and newer), either install it (`sudo apt install libfuse2`; on Ubuntu 24.04 the package is `libfuse2t64`) or run the app without FUSE:
+
+```bash
+./CantiniAutoGPS-*-linux-x86_64.AppImage --appimage-extract-and-run
+```
+
+The Linux build is automatically smoke-tested on a virtual display in CI; please [report any issues](https://github.com/rmcantini/CantiniAutoGPS/issues) from real desktops.
+
 If you would rather not trust a binary, you can [build it yourself](#build-from-source).
 
 ## How to use it
@@ -104,7 +124,7 @@ cargo bundle --release
 
 The result is in `target/release/bundle/`. On macOS the bundled ExifTool lives in `vendor/exiftool/`. On Windows the app looks for `exiftool.exe` next to itself (download it from [exiftool.org](https://exiftool.org)). If no bundled copy is found, the app falls back to an ExifTool installed on your system (for example `brew install exiftool`).
 
-GitHub Actions (`.github/workflows/build.yml`) builds and tests both platforms on every push, and publishes the macOS DMG and Windows zip when a `v*` tag is pushed. Run `cantini_auto_gps --check-exiftool` to see which one is being used.
+GitHub Actions (`.github/workflows/build.yml`) builds and tests all three platforms on every push, and publishes the macOS DMG, Windows zip and Linux AppImage when a `v*` tag is pushed. Run `cantini_auto_gps --check-exiftool` to see which one is being used.
 
 ## License
 
@@ -112,9 +132,9 @@ CantiniAutoGPS is released under the [MIT License](LICENSE).
 
 It bundles and uses other software under their own licenses:
 
-- **[ExifTool](https://exiftool.org)** by Phil Harvey, bundled unmodified (in `vendor/exiftool/` on macOS; the official Windows build in the Windows zip), under the same terms as Perl (Artistic License or GPL). It is redistributed under the Artistic License; see [`vendor/exiftool/LICENSE-Artistic.txt`](vendor/exiftool/LICENSE-Artistic.txt).
+- **[ExifTool](https://exiftool.org)** by Phil Harvey, bundled unmodified (in `vendor/exiftool/` on macOS and Linux; the official Windows build in the Windows zip), under the same terms as Perl (Artistic License or GPL). It is redistributed under the Artistic License; see [`vendor/exiftool/LICENSE-Artistic.txt`](vendor/exiftool/LICENSE-Artistic.txt).
 - **Rust crates** (egui/eframe, rfd, image and their dependencies), all under permissive licenses such as MIT, Apache-2.0, BSD, Zlib and Unicode. The full list and license texts are in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md), which is also included inside the app bundle.
-- **Fonts**: the interface uses the system font (San Francisco on macOS, Segoe UI on Windows) at runtime (not redistributed) and egui's embedded default fonts as a fallback (licenses in `THIRD_PARTY_LICENSES.md`).
+- **Fonts**: the interface uses the system font (San Francisco on macOS, Segoe UI on Windows; egui's embedded font elsewhere) at runtime (not redistributed) and egui's embedded default fonts as a fallback (licenses in `THIRD_PARTY_LICENSES.md`).
 
 ## Acknowledgements
 

@@ -32,6 +32,7 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([720.0, 740.0])
             .with_min_inner_size([600.0, 560.0])
             .with_title("CantiniAutoGPS")
+            .with_app_id("cantini-autogps") // matches the Linux .desktop file
             .with_drag_and_drop(true)
             .with_icon(egui::IconData {
                 rgba: icon.into_raw(),

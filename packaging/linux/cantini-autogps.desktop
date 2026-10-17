@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CantiniAutoGPS
+Comment=Geotag photos from a GPX track
+Exec=cantini_auto_gps
+Icon=cantini-autogps
+Categories=Graphics;Photography;
+Terminal=false
+StartupWMClass=cantini-autogps
