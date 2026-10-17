@@ -19,7 +19,7 @@
 &nbsp;
 [![Download for Linux](https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/rmcantini/CantiniAutoGPS/releases/latest)
 
-<sub>Free and open source. ExifTool is bundled, so there is nothing else to install. Windows and Linux builds arrive with version 1.1.</sub>
+<sub>Free and open source. ExifTool is bundled, so there is nothing else to install.</sub>
 
 <br>
 
