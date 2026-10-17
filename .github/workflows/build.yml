@@ -1,0 +1,117 @@
+name: Build
+
+# Pushes to main and manual runs build and test both platforms and keep the results as
+# workflow artifacts. Pushing a tag like v1.1.0 additionally publishes a GitHub release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $appVersion = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+
+          # Download the Windows build of ExifTool and verify it against exiftool.org's checksum.
+          $etVersion = (Invoke-RestMethod https://exiftool.org/ver.txt).ToString().Trim()
+          $zip = "exiftool-${etVersion}_64.zip"
+          Invoke-WebRequest "https://exiftool.org/$zip" -OutFile $zip
+          $sums = Invoke-RestMethod https://exiftool.org/checksums.txt
+          $m = [regex]::Match($sums, "SHA2-256\($([regex]::Escape($zip))\)\s*=\s*([0-9a-fA-F]{64})")
+          if (-not $m.Success) { throw "No SHA2-256 checksum found for $zip" }
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $m.Groups[1].Value.ToLower()) { throw "Checksum mismatch for $zip" }
+          Write-Host "ExifTool $etVersion verified ($actual)"
+          Expand-Archive $zip -DestinationPath et
+
+          $name = "CantiniAutoGPS-$appVersion-windows-x64"
+          $dir = "dist/$name"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item target/release/cantini_auto_gps.exe "$dir/CantiniAutoGPS.exe"
+          $etDir = Get-ChildItem et -Directory | Select-Object -First 1
+          Copy-Item "$($etDir.FullName)/exiftool(-k).exe" "$dir/exiftool.exe"
+          Copy-Item "$($etDir.FullName)/exiftool_files" "$dir/exiftool_files" -Recurse
+          Copy-Item LICENSE, THIRD_PARTY_LICENSES.md "$dir/"
+          Copy-Item packaging/windows/NOTICE-ExifTool.txt "$dir/"
+          Copy-Item vendor/exiftool/LICENSE-Artistic.txt "$dir/LICENSE-ExifTool-Artistic.txt"
+          "ExifTool $etVersion" | Out-File "$dir/EXIFTOOL-VERSION.txt"
+          Compress-Archive -Path $dir -DestinationPath "dist/$name.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.zip
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest # Apple silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle --locked
+
+      - name: Bundle, sign (ad hoc) and make DMG
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          cargo bundle --release
+          APP=target/release/bundle/osx/CantiniAutoGPS.app
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          STAGE=$(mktemp -d)
+          cp -R "$APP" "$STAGE/"
+          ln -s /Applications "$STAGE/Applications"
+          mkdir -p dist
+          hdiutil create -quiet -volname "CantiniAutoGPS $VERSION" -srcfolder "$STAGE" -ov -format UDZO "dist/CantiniAutoGPS-$VERSION-macOS-arm64.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          ls -la artifacts
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" artifacts/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" artifacts/* --repo "$GITHUB_REPOSITORY" \
+              --title "CantiniAutoGPS ${TAG#v}" --generate-notes
+          fi

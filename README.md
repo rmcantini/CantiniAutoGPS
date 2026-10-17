@@ -2,7 +2,7 @@
 
 **Geotag your photos from a GPS track.** Drop in your photos and a GPX file from your phone, watch or GPS logger, and CantiniAutoGPS writes the location into each photo by matching the time it was taken to where you were at that moment.
 
-It is a small native macOS app written in Rust. ExifTool is bundled inside it, so there is nothing else to install.
+It is a small desktop app for macOS and Windows, written in Rust. ExifTool is bundled inside it, so there is nothing else to install.
 
 ## Features
 
@@ -17,17 +17,19 @@ It is a small native macOS app written in Rust. ExifTool is bundled inside it, s
   - Leaves photos that already have a location alone, unless you ask it to replace them.
 - **Clear results**: every photo shows whether it was tagged, skipped, or had no matching point in the track, with a summary at the end.
 - **Progress and Cancel** while tagging.
-- Follows your Mac's light or dark appearance and remembers your settings.
+- Follows your system's light or dark appearance and remembers your settings.
 
 ## Install
 
+### macOS
+
 **Requirements:** a Mac with Apple silicon (M1 or later). The app uses the Perl that ships with macOS.
 
-1. Download `CantiniAutoGPS-1.0.0-macOS-arm64.dmg` from the [latest release](https://github.com/rmcantini/CantiniAutoGPS/releases/latest).
+1. Download `CantiniAutoGPS-<version>-macOS-arm64.dmg` from the [latest release](https://github.com/rmcantini/CantiniAutoGPS/releases/latest).
 2. Open the DMG and drag **CantiniAutoGPS** into your **Applications** folder.
 3. Open it for the first time using the steps below.
 
-### Opening an app that is not notarized
+#### Opening an app that is not notarized
 
 CantiniAutoGPS is free and open source and is **not signed with a paid Apple Developer ID or notarized by Apple**. macOS therefore blocks it the first time with a message such as *"CantiniAutoGPS can't be opened because Apple cannot check it for malicious software."* This is expected, and you only have to do this once.
 
@@ -49,6 +51,16 @@ This removes the "downloaded from the internet" flag from the app:
 ```bash
 xattr -dr com.apple.quarantine /Applications/CantiniAutoGPS.app
 ```
+
+### Windows
+
+**Requirements:** Windows 10 or 11, 64-bit. (Windows builds are new in version 1.1.)
+
+1. Download `CantiniAutoGPS-<version>-windows-x64.zip` from the [latest release](https://github.com/rmcantini/CantiniAutoGPS/releases/latest).
+2. Right-click the zip and choose **Extract All…**. Run it from the extracted folder, not from inside the zip, and keep the folder together: `CantiniAutoGPS.exe` needs `exiftool.exe` and the `exiftool_files` folder next to it.
+3. Double-click `CantiniAutoGPS.exe`.
+
+The app is **not code-signed**, so Windows SmartScreen may show *"Windows protected your PC"*. Click **More info**, then **Run anyway**. You only need to do this once. If you prefer, right-click the downloaded zip, choose **Properties**, tick **Unblock**, and extract it afterwards.
 
 If you would rather not trust a binary, you can [build it yourself](#build-from-source).
 
@@ -90,7 +102,9 @@ cargo install cargo-bundle
 cargo bundle --release
 ```
 
-The result is in `target/release/bundle/`. The bundled ExifTool lives in `vendor/exiftool/`; if it is missing, the app falls back to an ExifTool installed on your system (for example `brew install exiftool`). Run `cantini_auto_gps --check-exiftool` to see which one is being used.
+The result is in `target/release/bundle/`. On macOS the bundled ExifTool lives in `vendor/exiftool/`. On Windows the app looks for `exiftool.exe` next to itself (download it from [exiftool.org](https://exiftool.org)). If no bundled copy is found, the app falls back to an ExifTool installed on your system (for example `brew install exiftool`).
+
+GitHub Actions (`.github/workflows/build.yml`) builds and tests both platforms on every push, and publishes the macOS DMG and Windows zip when a `v*` tag is pushed. Run `cantini_auto_gps --check-exiftool` to see which one is being used.
 
 ## License
 
@@ -98,9 +112,9 @@ CantiniAutoGPS is released under the [MIT License](LICENSE).
 
 It bundles and uses other software under their own licenses:
 
-- **[ExifTool](https://exiftool.org)** by Phil Harvey, bundled unmodified in `vendor/exiftool/`, under the same terms as Perl (Artistic License or GPL). It is redistributed under the Artistic License; see [`vendor/exiftool/LICENSE-Artistic.txt`](vendor/exiftool/LICENSE-Artistic.txt).
+- **[ExifTool](https://exiftool.org)** by Phil Harvey, bundled unmodified (in `vendor/exiftool/` on macOS; the official Windows build in the Windows zip), under the same terms as Perl (Artistic License or GPL). It is redistributed under the Artistic License; see [`vendor/exiftool/LICENSE-Artistic.txt`](vendor/exiftool/LICENSE-Artistic.txt).
 - **Rust crates** (egui/eframe, rfd, image and their dependencies), all under permissive licenses such as MIT, Apache-2.0, BSD, Zlib and Unicode. The full list and license texts are in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md), which is also included inside the app bundle.
-- **Fonts**: the interface uses the macOS system font at runtime (not redistributed) and egui's embedded default fonts as a fallback (licenses in `THIRD_PARTY_LICENSES.md`).
+- **Fonts**: the interface uses the system font (San Francisco on macOS, Segoe UI on Windows) at runtime (not redistributed) and egui's embedded default fonts as a fallback (licenses in `THIRD_PARTY_LICENSES.md`).
 
 ## Acknowledgements
 

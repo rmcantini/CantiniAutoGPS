@@ -1,3 +1,6 @@
+// Release builds on Windows are GUI programs: no console window.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod tagger;
 
 use eframe::egui::{self, Color32, RichText};
@@ -56,9 +59,12 @@ fn accent(dark: bool) -> Color32 {
 }
 
 fn setup_style(ctx: &egui::Context) {
-    // Use the system font (San Francisco) when available; egui's defaults remain as fallback.
+    // Use the system font (San Francisco on macOS, Segoe UI on Windows) when available; egui's defaults remain as fallback.
     let mut fonts = egui::FontDefinitions::default();
-    if let Ok(bytes) = std::fs::read("/System/Library/Fonts/SFNS.ttf") {
+    let system_font = ["/System/Library/Fonts/SFNS.ttf", r"C:\Windows\Fonts\segoeui.ttf"]
+        .iter()
+        .find_map(|p| std::fs::read(p).ok());
+    if let Some(bytes) = system_font {
         fonts
             .font_data
             .insert("sf".into(), egui::FontData::from_owned(bytes));

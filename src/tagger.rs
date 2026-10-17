@@ -2,7 +2,7 @@
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 
 pub const PHOTO_EXTS: &[&str] = &[
     "dng", "jpg", "jpeg", "tif", "tiff", "heic", "cr2", "cr3", "arw", "nef", "orf", "raf", "rw2",
@@ -54,7 +54,42 @@ impl ExifTool {
         if let Some(script) = &self.script {
             cmd.arg(script);
         }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: don't flash a console
+        }
         cmd
+    }
+
+    /// Runs ExifTool with `args` and waits for it to finish.
+    ///
+    /// On Windows the arguments go through a UTF-8 argfile (`-@`), which is ExifTool's
+    /// recommended way to pass non-ASCII file names there. It also avoids the command-line
+    /// length limit when many photos are given at once.
+    pub fn run(&self, args: &[OsString]) -> std::io::Result<Output> {
+        #[cfg(windows)]
+        {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static COUNTER: AtomicUsize = AtomicUsize::new(0);
+            let file = std::env::temp_dir().join(format!(
+                "cantini-args-{}-{}.txt",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::write(&file, argfile_contents(args))?;
+            let out = self
+                .command()
+                .args(["-charset", "filename=utf8", "-@"])
+                .arg(&file)
+                .output();
+            let _ = std::fs::remove_file(&file);
+            out
+        }
+        #[cfg(not(windows))]
+        {
+            self.command().args(args).output()
+        }
     }
 
     pub fn describe(&self) -> String {
@@ -71,6 +106,17 @@ impl ExifTool {
             .map(|o| o.status.success())
             .unwrap_or(false)
     }
+}
+
+/// One argument per line, as `-@` expects.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn argfile_contents(args: &[OsString]) -> String {
+    let mut out = String::new();
+    for a in args {
+        out.push_str(&a.to_string_lossy());
+        out.push('\n');
+    }
+    out
 }
 
 /// Folder holding the bundled `exiftool` script and its `lib/`.
@@ -90,6 +136,19 @@ fn bundled_script() -> Option<PathBuf> {
 /// Prefers the bundled ExifTool so behaviour doesn't depend on what the user has installed,
 /// and falls back to an installed one.
 pub fn find_exiftool() -> Option<ExifTool> {
+    // Windows build: exiftool.exe (with its exiftool_files folder) sits next to our own exe.
+    if cfg!(windows) {
+        if let Some(exe) = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("exiftool.exe")))
+            .filter(|p| p.is_file())
+        {
+            let tool = ExifTool { program: exe, script: None };
+            if tool.works() {
+                return Some(tool);
+            }
+        }
+    }
     if let Some(script) = bundled_script() {
         for perl in ["/usr/bin/perl", "perl"] {
             let tool = ExifTool { program: perl.into(), script: Some(script.clone()) };
@@ -174,7 +233,7 @@ fn first_line(s: &str) -> String {
 
 /// Tags one photo.
 pub fn tag_one(exiftool: &ExifTool, gpx: &[PathBuf], opts: &Options, photo: &Path) -> Outcome {
-    match exiftool.command().args(build_args(gpx, opts, photo)).output() {
+    match exiftool.run(&build_args(gpx, opts, photo)) {
         Ok(o) => classify(
             &String::from_utf8_lossy(&o.stdout),
             &String::from_utf8_lossy(&o.stderr),
@@ -198,11 +257,12 @@ pub struct PhotoInfo {
 
 /// Reads capture time, time zone offset and existing GPS for each photo in one ExifTool call.
 pub fn scan(exiftool: &ExifTool, paths: &[PathBuf]) -> Vec<PhotoInfo> {
-    let out = exiftool
-        .command()
-        .args(["-T", "-f", "-DateTimeOriginal", "-OffsetTimeOriginal", "-GPSLatitude"])
-        .args(paths)
-        .output();
+    let mut args: Vec<OsString> = ["-T", "-f", "-DateTimeOriginal", "-OffsetTimeOriginal", "-GPSLatitude"]
+        .iter()
+        .map(OsString::from)
+        .collect();
+    args.extend(paths.iter().map(OsString::from));
+    let out = exiftool.run(&args);
     match out {
         Ok(o) => parse_scan_output(paths, &String::from_utf8_lossy(&o.stdout)),
         Err(_) => paths.iter().map(|p| PhotoInfo { path: p.clone(), ..Default::default() }).collect(),
@@ -341,6 +401,13 @@ mod tests {
         assert_eq!(parse_exif_datetime("1970:01:01 00:00:00"), Some(0));
     }
 
+    #[test]
+    fn argfile_has_one_argument_per_line() {
+        let args: Vec<OsString> = vec!["-if".into(), "not $GPSLatitude".into(), "São Paulo/foto.dng".into()];
+        assert_eq!(argfile_contents(&args), "-if\nnot $GPSLatitude\nSão Paulo/foto.dng\n");
+    }
+
+    #[cfg(unix)]
     #[test]
     fn bundled_exiftool_is_found_and_runs() {
         let script = bundled_script().expect("vendor/exiftool/exiftool should exist");
