@@ -14,7 +14,22 @@ use tagger::{ExifTool, Options, Outcome, PhotoInfo};
 
 const ROW_HEIGHT: f32 = 24.0;
 
+/// winit's Wayland backend can't receive files dragged in from other apps, while its X11
+/// backend can. So when XWayland is available we use it; `CANTINI_WAYLAND=1` keeps native
+/// Wayland (drag and drop then won't work, but the Add buttons still do).
+#[cfg(target_os = "linux")]
+fn prefer_x11_for_drag_and_drop() {
+    let set = |k: &str| std::env::var_os(k).is_some_and(|v| !v.is_empty());
+    if set("DISPLAY") && (set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET")) && !set("CANTINI_WAYLAND") {
+        std::env::remove_var("WAYLAND_DISPLAY");
+        std::env::remove_var("WAYLAND_SOCKET");
+    }
+}
+
 fn main() -> eframe::Result<()> {
+    #[cfg(target_os = "linux")]
+    prefer_x11_for_drag_and_drop(); // must run before the window system is initialised
+
     if std::env::args().any(|a| a == "--check-exiftool") {
         match tagger::find_exiftool() {
             Some(t) => println!("{}", t.describe()),

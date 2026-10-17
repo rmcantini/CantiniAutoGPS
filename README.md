@@ -188,6 +188,9 @@ chmod +x CantiniAutoGPS-*-linux-x86_64.AppImage
 > ./CantiniAutoGPS-*-linux-x86_64.AppImage --appimage-extract-and-run
 > ```
 
+> [!NOTE]
+> **Wayland:** the app runs through XWayland when it is available, because drag and drop from other apps does not work on native Wayland. This is automatic. If you would rather use native Wayland (the **Add Photos…** and **Add GPX…** buttons still work), start it with `CANTINI_WAYLAND=1`.
+
 The Linux build is smoke-tested on a virtual display in CI. Please [report any issues](https://github.com/rmcantini/CantiniAutoGPS/issues) from real desktops.
 
 </details>
