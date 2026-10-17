@@ -2,7 +2,7 @@ ExifTool (bundled)
 ==================
 
 This folder contains exiftool.exe and the exiftool_files folder, which are the unmodified
-Windows build of ExifTool by Phil Harvey, downloaded from https://exiftool.org (the only change
+Windows build of ExifTool by Phil Harvey, downloaded via https://exiftool.org (hosted on SourceForge) and verified against the SHA-256 checksum published there (the only change
 is renaming "exiftool(-k).exe" to "exiftool.exe", as the ExifTool installation notes describe).
 
 ExifTool is free software; you can redistribute it and/or modify it under the same terms as Perl

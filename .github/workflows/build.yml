@@ -32,7 +32,9 @@ jobs:
           # Download the Windows build of ExifTool and verify it against exiftool.org's checksum.
           $etVersion = (Invoke-RestMethod https://exiftool.org/ver.txt).ToString().Trim()
           $zip = "exiftool-${etVersion}_64.zip"
-          Invoke-WebRequest "https://exiftool.org/$zip" -OutFile $zip
+          # The zip is hosted on SourceForge (linked from exiftool.org); checksums come from exiftool.org.
+          curl.exe --fail --location --silent --show-error --output $zip "https://sourceforge.net/projects/exiftool/files/$zip/download"
+          if ($LASTEXITCODE -ne 0) { throw "Download of $zip failed" }
           $sums = Invoke-RestMethod https://exiftool.org/checksums.txt
           $m = [regex]::Match($sums, "SHA2-256\($([regex]::Escape($zip))\)\s*=\s*([0-9a-fA-F]{64})")
           if (-not $m.Success) { throw "No SHA2-256 checksum found for $zip" }
